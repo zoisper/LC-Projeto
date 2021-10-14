@@ -69,8 +69,8 @@ sudoku = [[4,0,0,9,0,0,3,0,0],
            [0,0,0,0,0,5,0,0,3]]
 
 
-solve_sudoku(sudoku2)
-print_sudoku(sudoku2)
+solve_sudoku(sudoku)
+print_sudoku(sudoku)
 
 
 
