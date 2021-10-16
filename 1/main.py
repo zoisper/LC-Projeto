@@ -11,93 +11,77 @@ sudoku = [[4,0,0,9,0,0,3,0,0],
            [0,0,9,0,0,7,0,0,8],
            [0,0,0,0,0,5,0,0,3]]
 
-def print_solution(sudoku):
-    l = len(sudoku)
-    n = int(math.sqrt(l))
-    r = l * 2 + 2 * n +1
-    for i in range(l):
+def print_solution(sudoku, dim):
+    n = int(math.sqrt(dim))
+    r = dim * 2 + 2 * n +1
+    for i in range(dim):
         if i % n == 0:
             print("-"*r)
-        for j in range(l):
+        for j in range(dim):
             if  j % n == 0:
                 print("|", end = " ")
-            print(round(sudoku[i][j].solution_value()), end = " ")
-            if  j == l-1:
+            for k in range(dim):
+                if sudoku[(i,j,k)].solution_value() == 1:
+                    print(k+1, end = " ")
+            if  j == dim-1:
                 print("|", end = " ")
         print('')
     print("-" * r)
 
 
-
-
-
-
-
-
-
-def zeros(mat):
-    dim = len(mat)
-    result = 0
-    for row in range(dim):
-        for col in range(dim):
-            if mat[row][col] == 0:
-                result +=1
-    return result
-
-def rows(mat):
-    dim = len(mat)
-    for row in mat:
-        if len(set(row)) < dim:
-            return False
-    return True
-
-def columns(mat):
-    dim = len(mat)
-    for col in range(dim):
-        s = set()
-        for row in range(dim):
-            s.add(mat[row][col])
-        if len(s) < dim:
-            return False
-    return True
-
-def corners(mat):
-    dim = len(mat)
-    num_corners = int(math.sqrt(dim))
-    for i in range(num_corners):
-        row = i - i % dim
-        for j in range(num_corners):
-            col = j - j % dim
-            s  = set()
-            for r in range(num_corners):
-                for c in range(num_corners):
-                    s.add(mat[row+r][col+c])
-            if len(s) < dim:
-                return False
-    return True
-
-
 def sudoku_solver(sudoku):
     solver = pywraplp.Solver.CreateSolver('SCIP')
     dim = len(sudoku)
-    mat = [[0 for col in range(dim)] for row in range(dim) ]
+    num_corners = int(math.sqrt(dim))
+    cube = {}
     for row in range(dim):
         for col in range(dim):
-            if sudoku[row][col] != -1:
-                mat[row][col] = solver.IntVar(1,9,'grid %x %x' % (row, col))
+            for depth in range(dim):
+                cube[(row,col,depth)] = solver.BoolVar('%i%i%i' % (row,col,depth))
 
 
+    for row in range(dim):
+        for col in range(dim):
+            val = []
+            for depth in range(dim):
+                val.append(cube[(row,col,depth)])
+            solver.Add(solver.Sum(val) == 1)
+
+    for row in range(dim):
+        for depth in range(dim):
+            val = []
+            for col in range(dim):
+                val.append(cube[(row,col,depth)])
+            solver.Add(solver.Sum(val) == 1)
+
+    for depth in range(dim):
+        for col in range(dim):
+            val = []
+            for row in range(dim):
+                val.append(cube[(row, col, depth)])
+            solver.Add(solver.Sum(val) == 1)
+
+    for i in range(dim):
+        corner_y = i - i % num_corners
+        for j in range(dim):
+            corner_x = j - j % num_corners
+            for depth in range(dim):
+                val = []
+                for row in range(num_corners):
+                    for col in range(num_corners):
+                        val.append(cube[corner_y + row, corner_x + col, depth])
+                solver.Add(solver.Sum(val) == 1)
+
+    for i in range(dim):
+        for j in range(dim):
+            if sudoku[i][j] != 0:
+                solver.Add(cube[(i,j,sudoku[i][j]-1)] == 1)
 
 
-
-    solver.Add(rows(mat))
-    solver.Add(columns(mat))
-    solver.Add(corners(mat))
-    solver.Minimize(zeros(mat))
 
     status = solver.Solve()
+    print_solution(cube,dim)
 
-    print_solution(mat)
 
 sudoku_solver(sudoku)
 
