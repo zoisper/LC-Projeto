@@ -2,6 +2,10 @@ import math
 import random
 from ortools.linear_solver import pywraplp
 
+################
+###Problema 2###
+################
+
 sudoku = [[4,0,0,9,0,0,3,0,0],
            [0,0,2,1,0,0,0,0,4],
            [5,3,0,0,0,0,0,0,0],
@@ -209,6 +213,9 @@ def sudoku_generetor(N, alpha):
     return mat
 '''
 
+################
+###Problema 1###
+################
 
 projetos = {}
 projetos[1] = (1,[2,3,4],1)
