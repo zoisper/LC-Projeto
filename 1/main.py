@@ -218,9 +218,9 @@ def sudoku_generetor(N, alpha):
 ################
 
 projetos = {}
-projetos[1] = (1,[2,3,4],1)
-projetos[2] = (2,[4,5],1)
-projetos[3] = (3,[5,2],1)
+projetos[1] = (1,[2,3],1)
+projetos[2] = (4,[5],1)
+#projetos[3] = (3,[5,2],1)
 
 
 availabiliy = {}
@@ -228,7 +228,7 @@ availabiliy[1] = [(a,b) for a in range(1,8) for b in range(1,5)]
 availabiliy[2] = [(a,b) for a in range(1,8) for b in range(2,6)]
 availabiliy[3] = [(a,b) for a in range(1,8) for b in range(3,7)]
 availabiliy[4] = [(a,b) for a in range(1,8) for b in range(4,8)]
-availabiliy[5] = [(a,b) for a in range(1,8) for b in range(4,8)]
+#availabiliy[5] = [(a,b) for a in range(1,8) for b in range(4,8)]
 num_rooms = 3
 num_days = 7
 num_slots = 8
@@ -251,9 +251,10 @@ for employe in range(1,num_employes+1):
     for project in range(1,num_projetos+1):
         for day in range(1,num_days+1):
             for slot in range(1,num_slots+1):
-                if employe not in projetos[project][1] or (day,slot) not in availabiliy[employe]:
+                if (employe not in projetos[project][1] and employe != projetos[project][0]) or (day,slot) not in availabiliy[employe]:
                     for room in range(1,num_rooms+1):
                         solver.Add(schedule[(day,slot,room,project,employe)] == 0)
+                        print(f'E{employe},P{project},D{day},S{slot}')
 
 reunions = {}
 
@@ -290,7 +291,7 @@ for project in range(1, num_projetos+1):
     for day in range(1, num_days+1):
         for slot in range(1, num_slots+1):
             for room in range(1, num_rooms + 1):
-                if solver.Sum(schedule[(day,slot,room,project,employe)] for employe in range(1, num_employes+1)) <= (1+sum(projetos[project][1])):
+                if solver.Sum(schedule[(day,slot,room,project,employe)] for employe in range(1, num_employes+1)) <= (1+sum(projetos[project][1])) // 2:
                     solver.Add(reunions[day,slot,room,project] == 0)
 
 # colaborador so vai quando ha reuniao
