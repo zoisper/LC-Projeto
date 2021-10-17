@@ -5,6 +5,7 @@ from ortools.linear_solver import pywraplp
 ################
 ###Problema 2###
 ################
+from ortools.linear_solver.pywraplp import Solver
 
 sudoku = [[4,0,0,9,0,0,3,0,0],
            [0,0,2,1,0,0,0,0,4],
@@ -218,110 +219,110 @@ def sudoku_generetor(N, alpha):
 ################
 
 projetos = {}
-projetos[1] = (1,[2,3],1)
-projetos[2] = (4,[5],1)
+projetos[1] = (1,[1,2],1)
+#projetos[2] = (4,[5],1)
 #projetos[3] = (3,[5,2],1)
 
 
 availabiliy = {}
-availabiliy[1] = [(a,b) for a in range(1,8) for b in range(1,5)]
-availabiliy[2] = [(a,b) for a in range(1,8) for b in range(2,6)]
-availabiliy[3] = [(a,b) for a in range(1,8) for b in range(3,7)]
-availabiliy[4] = [(a,b) for a in range(1,8) for b in range(4,8)]
-#availabiliy[5] = [(a,b) for a in range(1,8) for b in range(4,8)]
-num_rooms = 3
-num_days = 7
+availabiliy[1] = [(a,b) for a in range(1,6) for b in range(1,5)]
+availabiliy[2] = [(a,b) for a in range(1,6) for b in range(1,5)]
+#availabiliy[2] = [(a,b) for a in range(1,6) for b in range(2,6)]
+#availabiliy[3] = [(a,b) for a in range(1,6) for b in range(3,7)]
+#availabiliy[4] = [(a,b) for a in range(1,6) for b in range(4,8)]
+#availabiliy[5] = [(a,b) for a in range(1,6) for b in range(4,8)]
+num_rooms = 1
+num_days = 5
 num_slots = 8
 num_projetos = len(projetos)
 num_employes = len(availabiliy)
 solver = pywraplp.Solver.CreateSolver('SCIP')
 
 schedule = {}
+reunions = {}
+rooms = {}
 
-
-for day in range(1,num_days+1):
-    for slot in range(1,num_slots+1):
-        for room in range(1,num_rooms+1):
-            for project in range(1,num_projetos+1):
-                for employe in range(1,num_employes+1):
-                    schedule[(day,slot,room,project, employe)] = solver.BoolVar('%i%i%i%i%i' % (day,slot,room,project, employe))
-
-#colaborador so pode ir no seu horario e nos seus projetos
+#definir dicionarios de horarios e inicializar
 for employe in range(1,num_employes+1):
     for project in range(1,num_projetos+1):
-        for day in range(1,num_days+1):
-            for slot in range(1,num_slots+1):
-                if (employe not in projetos[project][1] and employe != projetos[project][0]) or (day,slot) not in availabiliy[employe]:
-                    for room in range(1,num_rooms+1):
-                        solver.Add(schedule[(day,slot,room,project,employe)] == 0)
-                        print(f'E{employe},P{project},D{day},S{slot}')
+            for day in range(1,num_days+1):
+                for slot in range(1,num_slots+1):
+                    schedule[(employe,project,day,slot)] = solver.BoolVar('%i%i%i%i' % (employe,project,day,slot))
+                    if (employe not in projetos[project][1] and employe != projetos[project][0]) or (day,slot) not in availabiliy[employe]:
+                        solver.Add(schedule[(employe,project,day,slot)] == 0)
 
-reunions = {}
+#definir dicionarios de salas em que cada sala so pode ter um projeto num dia e hora
+for room in range(1, num_rooms+1):
+    for day in range(1, num_days+1):
+        for slot in range(1, num_slots+1):
+            acc = []
+            for project in range(1, num_projetos+1):
+                rooms[(room,day,slot,project)] = solver.BoolVar('%i%i%i%i' % (room,day,slot, project))
+                acc.append(rooms[(room,day,slot,project)])
+            solver.Add(solver.Sum(acc) <= 1)
 
 
+#definir dicionarios de reunioes e cada uma so pode ocorrer numa sala
 for day in range(1,num_days+1):
     for slot in range(1,num_slots+1):
         for room in range(1,num_rooms+1):
+            acc = []
             for project in range(1,num_projetos+1):
                 reunions[(day,slot, room, project)] = solver.BoolVar("%i%i%i%i" % (day, slot, room, project))
+                acc.append(reunions[(day,slot,room,project)])
+            solver.Add(solver.Sum(acc) <= 1)
 
-
-
-# uma unica reuniao por sala no mesmo dia e hora
-for day in range(1,num_days+1):
-    for slot in range(1,num_slots+1):
-        for room in range(1,num_rooms+1):
-            solver.Add(solver.Sum(reunions[(day,slot,room, project)] for project in range(1,num_projetos+1)) == 1)
-
-# numero de reunioes semanais
-for project in range(1,num_projetos+1):
-    solver.Add(solver.Sum(reunions[(day,slot,room, project)] for day in range(1,num_days+1) for slot in range(1, num_slots+1) for room in range(1, num_projetos+1)) == projetos[project][2])
-
-# reuniao so quando o lider presente
+#definir numero de reunioes semanais
 for project in range(1, num_projetos+1):
+    acc = []
     for day in range(1, num_days+1):
         for slot in range(1, num_slots+1):
-            leader = projetos[project][0]
-            if (day,slot) not in availabiliy[leader]:
+            for room in range(1, num_rooms+1):
+                acc.append(reunions[(day,slot,room,project)])
+    solver.Add(solver.Sum(acc) == projetos[project][2])
+
+#quorum minimo de 50%
+for project in range(1, num_projetos):
+    for day in range(1, num_days):
+        for slot in range(1, num_slots):
+            acc = []
+            for employe in range(1, num_employes +1):
+                acc.append(schedule[(employe,project,day,slot)])
+            solver.Add(solver.Sum(acc) >= sum(projetos[project][1]) //2)
+
+#reuniao so com o lider
+for project in projetos:
+    leader = projetos[project][0]
+    colaborators = projetos[project][1]
+    leader_avilability = availabiliy[leader]
+    for day in range(1, num_days+1):
+        for slot in range(1, num_slots+1):
+            if(day,slot) not in leader_avilability:
+                for employe in colaborators:
+                    solver.Add(schedule[(employe,project,day,slot)] == 0)
                 for room in range(1, num_rooms+1):
-                    solver.Add(reunions[(day,slot,room,project)] == 0)
-
-# renuniao so quando quorum de 50%
-for project in range(1, num_projetos+1):
-    for day in range(1, num_days+1):
-        for slot in range(1, num_slots+1):
-            for room in range(1, num_rooms + 1):
-                if solver.Sum(schedule[(day,slot,room,project,employe)] for employe in range(1, num_employes+1)) <= (1+sum(projetos[project][1])) // 2:
-                    solver.Add(reunions[day,slot,room,project] == 0)
-
-# colaborador so vai quando ha reuniao
-for employe in range(1, num_employes+1):
-    for project in range(1, num_projetos+1):
-        for day in range(1, num_days+1):
-            for slot in range(1, num_slots+1):
-                    if solver.Sum(reunions[(day,slot,room,project)] for room in range(1, num_rooms+1)) == 0:
-                        for room in range(1, num_rooms + 1):
-                            solver.Add(schedule[(day,slot,room,project,employe)] == 0 )
+                    solver.Add(rooms[(room,day,slot,project)] == 0)
+                    solver.Add(reunions[(day, slot,room, project)] == 0)
 
 
-solver.Solve()
 
-#imprimir resultado
+
+
+status = solver.Solve()
+
+
+
 for day in range(1,num_days+1):
-    print(f'Dia {day}', end=" ")
     for slot in range(1,num_slots+1):
-        print(f'Hora {slot}', end=" ")
-        for room in range(1,num_rooms+1):
-            print(f'Sala {room}', end=" ")
-            for project in range(1,num_projetos+1):
-                if reunions[(day, slot, room, project)].solution_value() == 1:
-                    print(f'Projeto {project} Colaboradores:', end=" ")
-                    for employe in range(1, num_employes+1):
-                        if schedule[(day,slot,room,project,employe)].solution_value() == 1:
-                            print(employe, end=" ")
+            for room in range(1,num_rooms+1):
+                for project in range(1,num_projetos+1):
+                    print(reunions[(day,slot,room,project)].solution_value())
 
 
-    print("")
+
+
+
+
 
 
 
