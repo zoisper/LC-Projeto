@@ -312,11 +312,6 @@ status = solver.Solve()
 
 
 
-for day in range(1,num_days+1):
-    for slot in range(1,num_slots+1):
-            for room in range(1,num_rooms+1):
-                for project in range(1,num_projetos+1):
-                    print(reunions[(day,slot,room,project)].solution_value())
 
 
 
