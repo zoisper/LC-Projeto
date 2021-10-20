@@ -1,8 +1,124 @@
 import math
 import random
 from ortools.linear_solver import pywraplp
-import z3
-from z3 import *
+
+################
+###Problema 1###
+################
+
+def print_schedule(reunions, days, slots, rooms, projects, employes):
+    for p in projects:
+        print(f'Projeto:{p}')
+        leader = projetos[p][0]
+        for d in days:
+            for s in slots:
+                for r in rooms:
+                    if reunions[(d,s,r,p,leader)].solution_value() == 1:
+                        print(f'Dia: {d} Slot: {s} Sala: {r}')
+                        print("Colaboradores:", end= " ")
+                        print(f'*{leader}', end=" ")
+                        for e in employes:
+                            if reunions[(d,s,r,p,e)].solution_value()== 1 and e != leader:
+                                print(f'{e}', end=" ")
+                        print("")
+        print("")
+
+def make_schedule(num_days, num_slots, num_rooms, projs, availability):
+
+
+    rooms = [x for x in range(1,num_rooms+1)]
+    days = [x for x in range(1,num_days+1)]
+    slots = [x for x in range(1,num_slots+1)]
+    projects = [x for x in range(1,len(projs)+1)]
+    employes = [x for x in range(1, len(availability)+1)]
+    leaders = {projs[p][0] for p in projects}
+    
+
+    solver = pywraplp.Solver.CreateSolver('SCIP')
+    reunions ={}
+
+    #inicializar vairiaveis
+    for d in days:
+        for s in slots:
+            for r in rooms:
+                for p in projects:
+                    for e in employes:
+                        reunions[(d,s,r,p,e)] = solver.BoolVar('%i%i%i%i%i' %(d,s,r,p,e))
+
+    #funcionarios so vao as reunioes que podem
+    for e in employes:
+        for d in days:
+            for s in slots:
+                if (d,s) not in availability[e]:
+                    for r in rooms:
+                        for p in projects:
+                            solver.Add(reunions[(d,s,r,p,e)] == 0)
+
+    #funcionarios so nos seus projetos:
+    for e in employes:
+        for p in projects:
+            if e not in projs[p][1]:
+                for d in days:
+                    for s in slots:
+                        for r in rooms:
+                            solver.Add(reunions[(d,s,r,p,e)] == 0)
+
+
+    #sala so pode ter uma reuniao ao mesmo tempo
+    for r in rooms:
+        for d in days:
+            for s in slots:
+                solver.Add(sum([reunions[(d,s,r,p,l)] for p in projects for l in leaders]) <=1)
+
+    # reuniao so quando ha lider
+    for d in days:
+        for s in slots:
+            for r in rooms:
+                for p in projects:
+                    leader = projs[p][0]
+                    for e in employes:
+                        solver.Add(reunions[d,s,r,p,leader] >= reunions[d,s,r,p,e])
+
+    # reuniao com quorum minimo de 50%:
+    for d in days:
+        for s in slots:
+            for r in rooms:
+                for p in projects:
+                    leader = projs[p][0]
+                    quorum = len(projs[p][1]) /2
+                    solver.Add(sum([reunions[(d,s,r,p,e)] for e in employes]) >= (reunions[(d,s,r,p,leader)] * quorum))
+
+    #numero minimo de reunioes
+    for p in projects:
+        num_reunions = projetos[p][2]
+        leader = projetos[p][0]
+        solver.Add(sum([reunions[(d,s,r,p,leader)] for d in days for s in slots for r in rooms]) == num_reunions)
+
+
+
+    status = solver.Solve()
+    if status == pywraplp.Solver.OPTIMAL:
+        print_schedule(reunions, days, slots, rooms, projects, employes)
+    else:
+        print("Nao é possivel contruir o hórario")
+
+projetos = {}
+projetos[1] = (1,[1,2,3],1)
+projetos[2] = (4,[4,5],1)
+#projetos[3] = (3,[3,5,2],1)
+
+
+availability = {}
+availability[1] = [(a,b) for a in range(1,6) for b in range(1,5)]
+availability[2] = [(a,b) for a in range(1,6) for b in range(1,8)]
+availability[3] = [(a,b) for a in range(1,6) for b in range(6,8)]
+availability[4] = [(a,b) for a in range(1,6) for b in range(4,8)]
+availability[5] = [(a,b) for a in range(1,6) for b in range(4,8)]
+
+make_schedule(5,8,1,projetos,availability)
+
+
+
 
 ''''''
 ################
@@ -216,129 +332,6 @@ def sudoku_generetor(N, alpha):
     mat = converter(cube,dim)
     return mat
 '''
-
-################
-###Problema 1###
-################
-
-projetos = {}
-projetos[1] = (1,[1,2,3],1)
-#projetos[2] = (4,[5],1)
-#projetos[3] = (3,[5,2],1)
-
-
-availability = {}
-availability[1] = [(a,b) for a in range(1,6) for b in range(1,5)]
-availability[2] = [(a,b) for a in range(1,6) for b in range(1,5)]
-#availability[2] = [(a,b) for a in range(1,6) for b in range(2,6)]
-availability[3] = [(a,b) for a in range(1,6) for b in range(1,5)]
-#availability[4] = [(a,b) for a in range(1,6) for b in range(4,8)]
-#availability[5] = [(a,b) for a in range(1,6) for b in range(4,8)]
-
-num_rooms = 1
-num_days = 5
-num_slots = 8
-num_projetos = len(projetos)
-num_employes = len(availability)
-
-
-
-
-
-
-rooms = [x for x in range(1,num_rooms+1)]
-days = [x for x in range(1,num_days+1)]
-slots = [x for x in range(1,num_slots+1)]
-projects = [x for x in range(1,num_projetos+1)]
-employes = [x for x in range(1, num_employes+1)]
-leaders = set()
-for p in projects:
-    leaders.add(projetos[p][0])
-
-rs = pywraplp.Solver.CreateSolver('SCIP')
-reunions ={}
-
-#inicializar vairiaveis
-for d in days:
-    for s in slots:
-        for r in rooms:
-            for p in projects:
-                for e in employes:
-                    reunions[(d,s,r,p,e)] = rs.BoolVar('%i%i%i%i%i' %(d,s,r,p,e))
-
-#funcionarios so vao as reunioes que podem
-for e in employes:
-    for d in days:
-        for s in slots:
-            if (d,s) not in availability[e]:
-                for r in rooms:
-                    for p in projects:
-                        rs.Add(reunions[(d,s,r,p,e)] == 0)
-
-#funcionarios so nos seus projetos:
-for e in employes:
-    for p in projects:
-        if e not in projetos[p][1]:
-            for d in days:
-                for s in slots:
-                    for r in rooms:
-                        rs.Add(reunions[(d,s,r,p,e)] == 0)
-
-
-#sala so pode ter uma reuniao ao mesmo tempo
-for r in rooms:
-    for d in days:
-        for s in slots:
-            rs.Add(sum([reunions[(d,s,r,p,l)] for p in projects for l in leaders]) <=1)
-
-# reuniao so quando ha lider
-for d in days:
-    for s in slots:
-        for r in rooms:
-            for p in projects:
-                leader = projetos[p][0]
-                for e in employes:
-                    rs.Add(reunions[d,s,r,p,leader] >= reunions[d,s,r,p,e])
-
-# reuniao com quorum minimo:
-for d in days:
-    for s in slots:
-        for r in rooms:
-            for p in projects:
-                leader = projetos[p][0]
-                quorum = len(projetos[p][1]) /2
-                rs.Add(sum([reunions[(d,s,r,p,e)] for e in employes]) >= (reunions[(d,s,r,p,leader)] * quorum))
-
-#numero minimo de reunioes
-for p in projects:
-    num_reunions = projetos[p][2]
-    leader = projetos[p][0]
-    rs.Add(sum([reunions[(d,s,r,p,leader)] for d in days for s in slots for r in rooms]) == num_reunions)
-
-
-
-status = rs.Solve()
-print(status == pywraplp.Solver.OPTIMAL )
-
-for p in projects:
-    print(f'Projeto:{p}')
-    leader = projetos[p][0]
-    for d in days:
-        for s in slots:
-            for r in rooms:
-                if reunions[(d,s,r,p,leader)].solution_value() == 1:
-                    print(f'Dia {d} Hora {s} Sala {r}', end=" ")
-                    for e in employes:
-                        if reunions[(d,s,r,p,e)].solution_value()==1:
-                            print(f'E {e}', end=" ")
-
-
-
-
-
-
-
-
 
 
 
