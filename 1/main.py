@@ -84,6 +84,13 @@ def make_schedule(num_days, num_slots, num_rooms, projs, availability):
         for s in slots:
             for p in projects:
                 for e in employes:
+                    solver.Add(sum([reunions[(d, s, r, p, e)] for r in rooms]) <= 1)
+
+    # colaborador so pode esta num sitio ao mesmo tempo
+    for d in days:
+        for s in slots:
+            for p in projects:
+                for e in employes:
                     solver.Add(sum([reunions[(d,s,r,p,e)] for r in rooms]) <=1)
 
     # reuniao com quorum minimo de 50%:
@@ -122,7 +129,7 @@ availability[3] = [(a,b) for a in range(1,6) for b in range(6,8)]
 availability[4] = [(a,b) for a in range(1,6) for b in range(4,8)]
 availability[5] = [(a,b) for a in range(1,6) for b in range(4,8)]
 
-make_schedule(5,8,1,projetos,availability)
+#make_schedule(5,8,1,projetos,availability)
 
 
 
@@ -143,7 +150,7 @@ sudoku = [[4,0,0,9,0,0,3,0,0],
            [0,0,9,0,0,7,0,0,8],
            [0,0,0,0,0,5,0,0,3]]
 
-def sudoku_printer(sudoku):
+def print_sudoku(sudoku):
     l = len(sudoku)
     n = int(math.sqrt(l))
     pad = 1 + l // 10
@@ -176,7 +183,7 @@ def check(sudoku, row, column, number):
                 return False
     return True
 
-def sudoku_generetor(N, alpha):
+def sudoku_generator_simple(N, alpha):
     dim = N*N
     filled = int(dim * dim * alpha)
     mat = [[0 for a in range(dim)] for a in range(dim)]
@@ -201,6 +208,81 @@ def converter(cube,dim):
                 if cube[(row,col,depth)].solution_value() == 1:
                     mat[row][col] = depth + 1
     return mat
+
+
+def sudoku_generator(N, alpha):
+    dim = N * N
+    filled = int(dim * dim * alpha)
+    solver = pywraplp.Solver.CreateSolver('SCIP')
+    cube = {}
+
+    for row in range(dim):
+        for col in range(dim):
+            for depth in range(dim):
+                cube[(row, col, depth)] = solver.BoolVar('%i%i%i' % (row, col, depth))
+
+    for row in range(dim):
+        for col in range(dim):
+            val = []
+            for depth in range(dim):
+                val.append(cube[(row, col, depth)])
+            solver.Add(sum(val) == 1)
+
+    for row in range(dim):
+        for depth in range(dim):
+            val = []
+            for col in range(dim):
+                val.append(cube[(row, col, depth)])
+            solver.Add(sum(val) == 1)
+
+    for depth in range(dim):
+        for col in range(dim):
+            val = []
+            for row in range(dim):
+                val.append(cube[(row, col, depth)])
+            solver.Add(sum(val) == 1)
+
+    for i in range(dim):
+        corner_y = i - i % N
+        for j in range(dim):
+            corner_x = j - j % N
+            for depth in range(dim):
+                val = []
+                for row in range(N):
+                    for col in range(N):
+                        val.append(cube[corner_y + row, corner_x + col, depth])
+                solver.Add(sum(val) == 1)
+
+
+
+
+    for i in range(N):
+        randoms = []
+        row = random.randint(0, dim - 1)
+        col = random.randint(0, dim - 1)
+        depth = random.randint(1, dim - 1)
+        while (row, col) in randoms:
+            row = random.randint(0, dim - 1)
+            col = random.randint(0, dim - 1)
+        solver.Add(cube[(row, col, depth)] == 1)
+
+
+    status = solver.Solve()
+
+    if status == pywraplp.Solver.OPTIMAL:
+        mat = converter(cube, dim)
+        while (filled > 0):
+            row = random.randint(0, dim - 1)
+            col = random.randint(0, dim - 1)
+            while mat[row][col] == 0:
+                row = random.randint(0, dim - 1)
+                col = random.randint(0, dim - 1)
+            mat[row][col] = 0
+            filled -= 1
+
+        return mat
+    else:
+        return False
 
 
 
@@ -257,88 +339,18 @@ def sudoku_solver(sudoku):
     status = solver.Solve()
     mat = converter(cube, dim)
     if status == pywraplp.Solver.OPTIMAL:
-        sudoku_printer(mat)
+        print_sudoku(mat)
     else:
         print("Sem Solução")
 
+mat = sudoku_generator(5,0.2)
+if mat:
+    print_sudoku(mat)
+sudoku_solver(mat)
 
 
 
 
-
-#sudoku = sudoku_generetor(3,0.2)
-
-#sudoku_printer(sudoku)
-
-#sudoku_solver(sudoku)
-
-''''''
-
-'''
-def sudoku_generetor(N, alpha):
-    dim = N*N
-    filled = int(dim * dim * alpha)
-    num_frequence = filled // 9
-    num_squares = int(math.sqrt(dim))
-    solver = pywraplp.Solver.CreateSolver('SCIP')
-    cube = {}
-
-    for row in range(dim):
-        for col in range(dim):
-            for depth in range(dim):
-                cube[(row, col, depth)] = solver.BoolVar('%i%i%i' % (row, col, depth))
-
-    for row in range(dim):
-        for col in range(dim):
-            val = []
-            for depth in range(dim):
-                val.append(cube[(row,col,depth)])
-            solver.Add(solver.Sum(val) <= 1)
-
-    for row in range(dim):
-        for depth in range(dim):
-            val = []
-            for col in range(dim):
-                val.append(cube[(row,col,depth)])
-            solver.Add(solver.Sum(val) <= 1)
-
-    for depth in range(dim):
-        for col in range(dim):
-            val = []
-            for row in range(dim):
-                val.append(cube[(row, col, depth)])
-            solver.Add(solver.Sum(val) <= 1)
-
-    for i in range(dim):
-        corner_y = i - i % num_squares
-        for j in range(dim):
-            corner_x = j - j % num_squares
-            for depth in range(dim):
-                val = []
-                for row in range(num_squares):
-                    for col in range(num_squares):
-                        val.append(cube[corner_y + row, corner_x + col, depth])
-                solver.Add(solver.Sum(val) <= 1)
-
-    val = []
-    for row in range(dim):
-        for col in range(dim):
-            for depth in range(dim):
-                val.append(cube[(row,col,depth)])
-    solver.Add(solver.Sum(val) == filled)
-
-    for depth in range(dim):
-        val = []
-        for row in range(dim):
-            for col in range(dim):
-                val.append(cube[(row,col,depth)])
-        solver.Add(solver.Sum(val) <= num_frequence + 1)
-
-
-    solver.Solve()
-    mat = converter(cube,dim)
-    return mat
-'''
 
 
 
