@@ -79,6 +79,13 @@ def make_schedule(num_days, num_slots, num_rooms, projs, availability):
                     for e in employes:
                         solver.Add(reunions[d,s,r,p,leader] >= reunions[d,s,r,p,e])
 
+    # colaborador so pode esta num sitio ao mesmo tempo
+    for d in days:
+        for s in slots:
+            for p in projects:
+                for e in employes:
+                    solver.Add(sum([reunions[(d,s,r,p,e)] for r in rooms]) <=1)
+
     # reuniao com quorum minimo de 50%:
     for d in days:
         for s in slots:
