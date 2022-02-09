@@ -1,2 +1,2 @@
-# LC-Projetos
+# LC-Projeto
 Projetos de Logica Computacional
